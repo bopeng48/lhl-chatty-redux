@@ -4,14 +4,17 @@ import ChatBar from './chatbar.js';
 import MessageList from './messagelist.js';
 
 export default class App extends Component {
-  state = {
-    currentUser: {
-      username: 'Bob'
-    },
-    messages: [],
-    userCount: 0,
-    online: false,
-    notificationId: 0
+  constructor(props) {
+    super(props);
+    this.state = {
+      currentUser: {
+        username: 'Bob'
+      },
+      messages: [],
+      userCount: 0,
+      online: false,
+      notificationId: 0
+    };
   }
 
   componentDidMount() {
@@ -73,7 +76,7 @@ export default class App extends Component {
     const type = "postNotification";
 
     return ({
-      id: this.notificationId++,
+      id: this.state.notificationId++,
       type,
       content
     });
