@@ -10,16 +10,12 @@ export default class App extends Component {
     },
     messages: [],
     userCount: 0,
-    online: false
+    online: false,
+    notificationId: 0
   }
 
   componentDidMount() {
-    const { hostname, port } = location;
-    this.socket = new WebSocket(`ws://${hostname}:${port}/`);
-    this.socket.onopen = this.onSocketOpen;
-    this.socket.onclose = this.onSocketClose;
-    this.socket.onmessage = this.onSocketMessage;
-    this.socket.onerror = this.onSocketError;
+    this.connect();
   }
 
   componentWillUnmount() {
@@ -39,13 +35,22 @@ export default class App extends Component {
           <a href="/" className="navbar-brand">ChattyApp</a>
           <img src="//freeiconshop.com/wp-content/uploads/edd/chat-alt-outline.png" className="icon"/>
           <div className='user-count'>
-            <p>{userCount} users online.</p>
+            { online ? <p>{userCount} users online.</p> : <p onClick={this.connect}>Server is offline</p> }
           </div>
         </nav>
         <MessageList {...messageListProps} />
         <ChatBar {...chatBarProps} />
       </div>
     );
+  }
+
+  connect = () => {
+    const { hostname, port } = location;
+    this.socket = new WebSocket(`ws://${hostname}:${port}/`);
+    this.socket.onopen = this.onSocketOpen;
+    this.socket.onclose = this.onSocketClose;
+    this.socket.onmessage = this.onSocketMessage;
+    this.socket.onerror = this.onSocketError;
   }
 
   send(message) {
@@ -64,6 +69,16 @@ export default class App extends Component {
     });
   }
 
+  createNotification(content) {
+    const type = "postNotification";
+
+    return ({
+      id: this.notificationId++,
+      type,
+      content
+    });
+  }
+
   handlers = {
     usersCount: ({ usersOnline }) => this.setState({ userCount: usersOnline}),
     incomingMessage: ({ username, content, id, color }) => {
@@ -71,11 +86,23 @@ export default class App extends Component {
     }
   }
 
+  addNotification(content) {
+    this.setState({ messages: [...this.state.messages, this.createNotification(content)] });
+  }
 
   onNewMessage    = (message)  => { this.send(message); }
   onNewUsername   = (username) => { this.setState({ currentUser: { username } }); }
-  onSocketOpen    = (e)        => { this.setState({ online: true }); }
-  onSocketClose   = (e)        => { this.setState({ online: false }); }
+
+  onSocketOpen    = (e) => {
+    this.addNotification("Server online");
+    this.setState({ online: true });
+  }
+
+  onSocketClose   = (e) => {
+    this.addNotification("Server went away");
+    this.setState({ online: false });
+  }
+
   onSocketMessage = (message)  => {
     const payload = JSON.parse(message.data);
     if(this.handlers[payload.type]) {
@@ -84,5 +111,7 @@ export default class App extends Component {
       console.info('Could not handle', payload);
     }
   }
-  onSocketError   = (error)    => { console.error(error); }
+  onSocketError   = (error)    => {
+    this.addNotification("Server connection has experienced an error");
+  }
 }

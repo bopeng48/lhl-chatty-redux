@@ -3,14 +3,12 @@ import React, { Component } from 'react';
 export default class ChatBar extends Component {
   constructor(props) {
     super(props);
-
     const { username } = props;
 
     this.state = {
       username,
       message: ""
     }
-
   }
 
   onUsernameChanged = ({ target: { value: username } }) => {
@@ -34,18 +32,33 @@ export default class ChatBar extends Component {
     this.setState({ message: "" });
   }
 
+  get disabled() {
+    return !this.props.online;
+  }
+
   render() {
-    const { onUsernameChanged, onUsernameKeypress, onMessageChanged, onMessageKeypress, state: { username, message } } = this;
+    const {
+      onUsernameChanged,
+      onUsernameKeypress,
+      onMessageChanged,
+      onMessageKeypress,
+      state: { username, message },
+      disabled
+    } = this;
     return (
       <footer className="chatbar">
         <input className="chatbar-username" placeholder="Your Name (Optional)"
           value={username}
           onChange={onUsernameChanged}
-          onKeyPress={onUsernameKeypress} />
+          onKeyPress={onUsernameKeypress}
+          disabled={disabled}
+        />
         <input className="chatbar-message" placeholder="Type a message and hit ENTER"
           value={message}
           onChange={onMessageChanged}
-          onKeyPress={onMessageKeypress} />
+          onKeyPress={onMessageKeypress}
+          disabled={disabled}
+        />
       </footer>
     );
   }
