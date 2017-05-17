@@ -1,9 +1,23 @@
 import React, { Component } from 'react';
+import { connect } from 'react-redux';
 
+import { socketAction } from '../middlewares/websocket.js';
+import { usernameChanged, messageSent } from '../actions';
+
+const mapStateToProps = (state) => ({
+  online: state.socket.connected
+});
+
+const mapDispatchToProps = {
+  usernameChanged: socketAction(usernameChanged),
+  messageSent: socketAction(messageSent)
+};
+
+@connect(mapStateToProps, mapDispatchToProps)
 export default class ChatBar extends Component {
   constructor(props) {
     super(props);
-    const { username } = props;
+    const { username = "Anonymous" } = props;
 
     this.state = {
       username,
@@ -22,13 +36,13 @@ export default class ChatBar extends Component {
   onUsernameKeypress = ({ key }) => {
     if(key !== 'Enter') { return; }
 
-    this.props.onNewUsername(this.state.username);
+    this.props.usernameChanged(this.props.username, this.state.username);
   }
 
   onMessageKeypress = ({ key }) => {
     if(key !== 'Enter') { return; }
 
-    this.props.onNewMessage(this.state.message);
+    this.props.messageSent(this.state.message, this.props.username);
     this.setState({ message: "" });
   }
 

@@ -1,10 +1,15 @@
 const express = require('express');
-const SocketServer = require('ws').Server;
 const uuidV1 = require('uuid/v1');
 const WebSocket = require('ws');
 
 // Set the port to 3001
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
+
+const {
+  USER_JOINS, USER_LEAVES,
+  MESSAGE_SENT, MESSAGE_RECEIVED,
+  USER_NAME_CHANGED
+} = require('./src/actionTypes.js');
 
 // Create a new express server
 const server = express()
@@ -13,22 +18,16 @@ const server = express()
   .listen(PORT, '0.0.0.0', 'localhost');
 
 // Create the WebSockets server
-const wss = new SocketServer({ server });
+const wss = new WebSocket.Server({ server });
 
-function makeUserCountMessage(usersOnline) {
-  const type = 'usersCount';
-  return {
-    type,
-    usersOnline,
-  };
-}
-
-function broadcast(data) {
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
-    }
-  });
+function broadcast(message, ignoreClient) {
+  const packet = JSON.stringify(message);
+  wss.clients
+    .forEach(client => {
+      if(client.readyState !== WebSocket.OPEN || (ignoreClient && ignoreClient === client)) return;
+      console.log('Broadcasting ', packet);
+      client.send(packet);
+    });
 }
 
 const colors = ['#4286f4', '#37e855', '#ef6c26', '#d820ba'];
@@ -38,39 +37,51 @@ let connectionID = 0;
 // When a client connects they are assigned a socket, represented by
 // the ws parameter in the callback.
 // We then loop through the clients and send out incoming messages to each
-wss.on('connection', (ws) => {
-  console.log('User connected');
-  const userColor = colors[++connectionID % colors.length];
-  const userCountMessage = makeUserCountMessage(wss.clients.size.toString());
-  broadcast(userCountMessage);
-  ws.on('message', (message) => {
-    const parsedMessage = JSON.parse(message);
-    parsedMessage.id = uuidV1();
-    const imageLinks = parsedMessage.content.match(/(https?:\/\/.*\.(?:png|jpeg|jpg|gif))/i);
-    if (imageLinks !== null) {
-      parsedMessage.img = imageLinks[1];
-    }
-    switch (parsedMessage.type) {
-      case 'postMessage':
-        parsedMessage.type = 'incomingMessage';
-        parsedMessage.color = userColor;
+wss.on('connection', client => {
+  client.data = {
+    username: "Anonymous",
+    color: colors[++connectionID % colors.length],
+    id: uuidV1(),
+  };
+
+  console.log(`User ${client.data.id} connected`);
+
+  wss.clients.forEach(({ data }) => {
+    const payload = Object.assign({}, data, { me: data.id === client.data.id });
+    client.send(JSON.stringify({ type: USER_JOINS, payload }));
+  });
+
+  broadcast({ type: USER_JOINS, payload: client.data }, client);
+
+  client.on('message', (message) => {
+    const { type, payload } = JSON.parse(message);
+    const id = uuidV1();
+    const { username, color } = client.data;
+
+    switch(type) {
+      case MESSAGE_SENT:
+        broadcast({ type: MESSAGE_RECEIVED, payload: Object.assign({}, payload, { type: 'message', id, username, color }) });
         break;
-      case 'postNotification':
-        parsedMessage.type = 'incomingNotification';
+      case USER_NAME_CHANGED: {
+        const { id, username: oldUsername } = client.data;
+        const { newUsername } = payload;
+        client.data.username = newUsername;
+        broadcast({ type, payload: { id, oldUsername, newUsername }});
         break;
+      }
       default:
-        console.error('Unknown message type', parsedMessage.type);
+        console.info(type, payload);
     }
-    broadcast(parsedMessage);
+
   });
 
 
   // Set up a callback for when a client closes the socket.
   // This usually means they closed their browser.
   // TODO: on close, reduce the online user count accordingly
-  ws.on('close', () => {
+  client.on('close', () => {
     console.log('Client disconnected');
-    broadcast(makeUserCountMessage(wss.clients.size));
+    broadcast({ type: USER_LEAVES, payload: client.data });
   });
 });
 
